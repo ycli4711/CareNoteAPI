@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\User;
+use App\Models\AdminUser;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Fortify\Features;
@@ -12,7 +12,7 @@ beforeEach(function () {
 test('sends verification notification', function () {
     Notification::fake();
 
-    $user = User::factory()->unverified()->create();
+    $user = AdminUser::factory()->unverified()->create();
 
     $this->actingAs($user)
         ->post(route('verification.send'))
@@ -24,7 +24,7 @@ test('sends verification notification', function () {
 test('does not send verification notification if email is verified', function () {
     Notification::fake();
 
-    $user = User::factory()->create();
+    $user = AdminUser::factory()->create();
 
     $this->actingAs($user)
         ->post(route('verification.send'))

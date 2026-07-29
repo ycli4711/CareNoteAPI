@@ -1,0 +1,155 @@
+openapi: 3.1.0
+info:
+  title: CareNote API
+  version: 1.0.0
+  description: CareNote 小程序与未来 App 共用的版本化 API 契约。
+  license:
+    name: MIT
+    identifier: MIT
+servers:
+  - url: /api/v1
+    description: 当前部署环境
+tags:
+  - name: System
+    description: 服务状态
+  - name: Account
+    description: 当前应用用户
+paths:
+  /ping:
+    get:
+      operationId: ping
+      summary: 检查 API 服务状态
+      tags: [System]
+      security: []
+      responses:
+        '200':
+          description: API 正常
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Ping'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /me:
+    get:
+      operationId: currentUser
+      summary: 获取当前应用用户
+      tags: [Account]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 当前应用用户
+          headers:
+            X-Request-ID:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessEnvelope'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AppUser'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+  headers:
+    RequestId:
+      description: 当前请求的链路追踪 ID。
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: 请求格式错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthenticated:
+      description: 未提供有效的应用用户 Token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: Token 缺少接口要求的能力
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+  schemas:
+    ResponseMeta:
+      type: object
+      required: [request_id]
+      properties:
+        request_id:
+          type: string
+    SuccessEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {}
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+    ErrorEnvelope:
+      type: object
+      required: [message, code, errors, meta]
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+        errors:
+          type: object
+          additionalProperties: true
+        meta:
+          $ref: '#/components/schemas/ResponseMeta'
+    Ping:
+      type: object
+      required: [service, api_version, status, timestamp]
+      properties:
+        service:
+          type: string
+        api_version:
+          type: string
+          const: v1
+        status:
+          type: string
+          const: ok
+        timestamp:
+          type: string
+          format: date-time
+    AppUser:
+      type: object
+      required: [id, display_name, avatar_url, status, last_active_at]
+      properties:
+        id:
+          type: string
+        display_name:
+          type: [string, 'null']
+        avatar_url:
+          type: [string, 'null']
+          format: uri
+        status:
+          type: string
+          enum: [active, disabled]
+        last_active_at:
+          type: [string, 'null']
+          format: date-time

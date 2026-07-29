@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\User;
+use App\Models\AdminUser;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Fortify\Features;
 
@@ -20,7 +20,7 @@ test('two factor challenge can be rendered', function () {
         'confirmPassword' => true,
     ]);
 
-    $user = User::factory()->create();
+    $user = AdminUser::factory()->create();
 
     $user->forceFill([
         'two_factor_secret' => encrypt('test-secret'),

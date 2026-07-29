@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { LayoutGrid, Palette, ShieldCheck, UserRound } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
@@ -18,11 +18,16 @@ import * as profile from '@/routes/profile';
 import * as security from '@/routes/security';
 import type { NavItem } from '@/types';
 
-const mainNavItems: NavItem[] = [
+type AdminNavItem = NavItem & {
+    permission?: string;
+};
+
+const mainNavItems: AdminNavItem[] = [
     {
         title: '控制台',
         href: dashboard(),
         icon: LayoutGrid,
+        permission: 'admin.dashboard.view',
     },
     {
         title: '个人资料',
@@ -42,6 +47,14 @@ const mainNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const { auth } = usePage().props;
+    const visibleItems = mainNavItems.filter(
+        (item) =>
+            !item.permission ||
+            auth.roles.includes('super-admin') ||
+            auth.permissions.includes(item.permission),
+    );
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
@@ -57,7 +70,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={mainNavItems} />
+                <NavMain items={visibleItems} />
             </SidebarContent>
 
             <SidebarFooter>

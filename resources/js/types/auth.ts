@@ -1,4 +1,4 @@
-export type User = {
+export type AdminUser = {
     id: number;
     name: string;
     email: string;
@@ -11,7 +11,9 @@ export type User = {
 };
 
 export type Auth = {
-    user: User;
+    user: AdminUser | null;
+    roles: string[];
+    permissions: string[];
 };
 
 export type TwoFactorSetupData = {
