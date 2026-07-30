@@ -20,6 +20,7 @@ class PermissionSeeder extends Seeder
             'admin.access',
             'admin.dashboard.view',
             'admin.media.upload',
+            'admin.ai.manage',
             'admin.accounts.manage',
             'admin.roles.manage',
             'system.health.view',
@@ -35,6 +36,7 @@ class PermissionSeeder extends Seeder
                 'admin.access',
                 'admin.dashboard.view',
                 'admin.media.upload',
+                'admin.ai.manage',
             ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();

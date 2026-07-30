@@ -11,6 +11,9 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call(PermissionSeeder::class);
+        $this->call([
+            PermissionSeeder::class,
+            AiManagementSeeder::class,
+        ]);
     }
 }

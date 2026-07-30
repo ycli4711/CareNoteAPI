@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { LayoutGrid } from 'lucide-react';
+import { Bot, LayoutGrid } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -25,6 +25,12 @@ const mainNavItems: AdminNavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
         permission: 'admin.dashboard.view',
+    },
+    {
+        title: 'AI 管理',
+        href: '/admin/ai',
+        icon: Bot,
+        permission: 'admin.ai.manage',
     },
 ];
 

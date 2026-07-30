@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
@@ -28,6 +29,12 @@ class User extends Authenticatable
     public function identities(): HasMany
     {
         return $this->hasMany(UserIdentity::class);
+    }
+
+    /** @return HasOne<UserAiEntitlement, $this> */
+    public function aiEntitlement(): HasOne
+    {
+        return $this->hasOne(UserAiEntitlement::class);
     }
 
     /**
