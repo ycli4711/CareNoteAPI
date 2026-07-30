@@ -130,3 +130,36 @@ it('keeps the complete core medication field set', function (): void {
         'created_at',
     ]))->toBeTrue();
 });
+
+it('defines comments for every CareNote table and column', function (): void {
+    $migration = require database_path('migrations/2026_07_30_180000_add_comments_to_carenote_tables.php');
+    $reflection = new ReflectionClass($migration);
+    $tableDefinitions = $reflection->getReflectionConstant('TABLES')->getValue();
+    $userColumns = $reflection->getReflectionConstant('USER_COLUMNS')->getValue();
+
+    expect($tableDefinitions)->toHaveCount(27);
+
+    foreach ($tableDefinitions as $table => $definition) {
+        expect($definition['comment'])->not->toBeEmpty()
+            ->and(array_keys($definition['columns']))->toEqualCanonicalizing(
+                Schema::getColumnListing($table),
+            );
+
+        foreach ($definition['columns'] as $comment) {
+            expect($comment)->not->toBeEmpty();
+        }
+    }
+
+    expect(array_keys($userColumns))->toEqualCanonicalizing([
+        'gender',
+        'tracking_enabled',
+        'privacy_v1_1_seen',
+        'invite_token',
+        'theme_id',
+        'onboarding',
+    ]);
+
+    foreach ($userColumns as $comment) {
+        expect($comment)->not->toBeEmpty();
+    }
+});
