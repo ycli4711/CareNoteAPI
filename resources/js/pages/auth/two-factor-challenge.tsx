@@ -23,18 +23,16 @@ export default function TwoFactorChallenge() {
     }>(() => {
         if (showRecoveryInput) {
             return {
-                title: 'Recovery code',
-                description:
-                    'Please confirm access to your account by entering one of your emergency recovery codes.',
-                toggleText: 'login using an authentication code',
+                title: '恢复代码',
+                description: '请输入一个紧急恢复代码以确认您有权访问此账户。',
+                toggleText: '使用身份验证代码登录',
             };
         }
 
         return {
-            title: 'Authentication code',
-            description:
-                'Enter the authentication code provided by your authenticator application.',
-            toggleText: 'login using a recovery code',
+            title: '身份验证代码',
+            description: '请输入身份验证器应用提供的验证码。',
+            toggleText: '使用恢复代码登录',
         };
     }, [showRecoveryInput]);
 
@@ -51,7 +49,7 @@ export default function TwoFactorChallenge() {
 
     return (
         <>
-            <Head title="Two-factor authentication" />
+            <Head title="双重验证" />
 
             <div className="space-y-6">
                 <Form
@@ -67,7 +65,7 @@ export default function TwoFactorChallenge() {
                                     <Input
                                         name="recovery_code"
                                         type="text"
-                                        placeholder="Enter recovery code"
+                                        placeholder="请输入恢复代码"
                                         autoFocus={showRecoveryInput}
                                         required
                                     />
@@ -109,11 +107,11 @@ export default function TwoFactorChallenge() {
                                 className="w-full"
                                 disabled={processing}
                             >
-                                Continue
+                                继续
                             </Button>
 
                             <div className="text-center text-sm text-muted-foreground">
-                                <span>or you can </span>
+                                <span>或者，您可以</span>{' '}
                                 <button
                                     type="button"
                                     className="cursor-pointer text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"

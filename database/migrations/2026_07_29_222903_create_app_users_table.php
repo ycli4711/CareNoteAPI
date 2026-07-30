@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->string('id')->primary();
+            $table->ulid('id')->primary();
             $table->string('display_name')->nullable();
             $table->text('avatar_url')->nullable();
             $table->string('status')->default('active')->index();
@@ -22,7 +22,7 @@ return new class extends Migration
 
         Schema::create('user_identities', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->string('user_id');
+            $table->foreignUlid('user_id');
             $table->string('provider');
             $table->string('provider_subject');
             $table->string('union_id')->nullable()->index();

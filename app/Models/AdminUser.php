@@ -7,6 +7,7 @@ use Illuminate\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -18,7 +19,7 @@ use Spatie\Permission\Traits\HasRoles;
 class AdminUser extends Authenticatable implements MustVerifyEmailContract
 {
     /** @use HasFactory<AdminUserFactory> */
-    use HasFactory, HasRoles, MustVerifyEmail, Notifiable, TwoFactorAuthenticatable;
+    use HasFactory, HasRoles, HasUlids, MustVerifyEmail, Notifiable, TwoFactorAuthenticatable;
 
     protected string $guard_name = 'admin';
 

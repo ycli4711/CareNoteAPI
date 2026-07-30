@@ -31,13 +31,13 @@
         </style>
 
         <link rel="icon" href="/favicon.ico" sizes="any">
-        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        <link rel="icon" href="/carenote-logo.webp" type="image/webp">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
         @viteReactRefresh
         @vite(['resources/css/app.css', 'resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
         <x-inertia::head>
-            <title>{{ config('app.name', 'CareNoteAPI') }}</title>
+            <title>{{ config('app.name', '家庭药箱管理后台') }}</title>
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">

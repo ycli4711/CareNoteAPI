@@ -6,10 +6,10 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\Table;
+use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Table('users')]
@@ -18,11 +18,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory;
-
-    public $incrementing = false;
-
-    protected $keyType = 'string';
+    use HasApiTokens, HasFactory, HasUlids;
 
     /**
      * Get the external identities linked to the application user.
@@ -32,16 +28,6 @@ class User extends Authenticatable
     public function identities(): HasMany
     {
         return $this->hasMany(UserIdentity::class);
-    }
-
-    /**
-     * Bootstrap model events.
-     */
-    protected static function booted(): void
-    {
-        static::creating(function (User $user): void {
-            $user->id ??= (string) Str::ulid();
-        });
     }
 
     /**

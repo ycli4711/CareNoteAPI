@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\AdminUser;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 
 test('guests are redirected to the login page', function () {
     $response = $this->get(route('dashboard'));

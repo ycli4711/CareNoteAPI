@@ -27,6 +27,21 @@ type Props = {
 };
 
 export default function Dashboard({ system, roles }: Props) {
+    const roleLabels: Record<string, string> = {
+        'super-admin': '超级管理员',
+        administrator: '管理员',
+    };
+    const databaseLabels: Record<string, string> = {
+        pgsql: 'PostgreSQL',
+        mysql: 'MySQL',
+        sqlite: 'SQLite',
+        sqlsrv: 'SQL Server',
+    };
+    const queueLabels: Record<string, string> = {
+        database: '数据库队列',
+        redis: 'Redis 队列',
+        sync: '同步执行',
+    };
     const statusCards = [
         {
             title: '客户端 API',
@@ -36,7 +51,7 @@ export default function Dashboard({ system, roles }: Props) {
         },
         {
             title: '数据库',
-            value: system.database,
+            value: databaseLabels[system.database] ?? system.database,
             description: '业务数据持久化',
             icon: Database,
         },
@@ -48,7 +63,7 @@ export default function Dashboard({ system, roles }: Props) {
         },
         {
             title: '队列',
-            value: system.queue,
+            value: queueLabels[system.queue] ?? system.queue,
             description: '异步任务执行通道',
             icon: Activity,
         },
@@ -63,7 +78,7 @@ export default function Dashboard({ system, roles }: Props) {
                     <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                         <div className="max-w-2xl space-y-3">
                             <Badge variant="secondary" className="rounded-full">
-                                CareNote Administration
+                                CareNote 管理后台
                             </Badge>
                             <div>
                                 <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">
@@ -82,7 +97,9 @@ export default function Dashboard({ system, roles }: Props) {
                             </div>
                             <div className="mt-2 flex flex-wrap gap-2">
                                 {roles.map((role) => (
-                                    <Badge key={role}>{role}</Badge>
+                                    <Badge key={role}>
+                                        {roleLabels[role] ?? role}
+                                    </Badge>
                                 ))}
                             </div>
                         </div>

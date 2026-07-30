@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { LayoutGrid, Palette, ShieldCheck, UserRound } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import AppLogo from '@/components/app-logo';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
@@ -13,9 +13,6 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
-import * as appearance from '@/routes/appearance';
-import * as profile from '@/routes/profile';
-import * as security from '@/routes/security';
 import type { NavItem } from '@/types';
 
 type AdminNavItem = NavItem & {
@@ -28,21 +25,6 @@ const mainNavItems: AdminNavItem[] = [
         href: dashboard(),
         icon: LayoutGrid,
         permission: 'admin.dashboard.view',
-    },
-    {
-        title: '个人资料',
-        href: profile.edit(),
-        icon: UserRound,
-    },
-    {
-        title: '安全设置',
-        href: security.edit(),
-        icon: ShieldCheck,
-    },
-    {
-        title: '外观设置',
-        href: appearance.edit(),
-        icon: Palette,
     },
 ];
 

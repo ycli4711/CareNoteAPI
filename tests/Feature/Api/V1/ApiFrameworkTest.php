@@ -2,6 +2,8 @@
 
 use App\Models\AdminUser;
 use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 test('ping uses the stable api envelope and request id', function () {
     $response = $this->withHeader('X-Request-ID', 'test-request-001')
@@ -58,5 +60,43 @@ test('unknown api routes use the stable error envelope', function () {
     $this->getJson('/api/v1/not-found')
         ->assertNotFound()
         ->assertJsonPath('code', 'COMMON.NOT_FOUND')
+        ->assertJsonStructure(['message', 'code', 'errors', 'meta' => ['request_id']]);
+});
+
+test('validation errors use the stable api error envelope', function () {
+    Route::middleware('api')->post('/api/v1/test-validation', function (Request $request) {
+        $request->validate([
+            'name' => ['required', 'string'],
+        ]);
+
+        return response()->noContent();
+    });
+
+    $this->withHeader('X-Request-ID', 'test-validation-request')
+        ->postJson('/api/v1/test-validation')
+        ->assertUnprocessable()
+        ->assertHeader('X-Request-ID', 'test-validation-request')
+        ->assertJsonPath('code', 'COMMON.VALIDATION_FAILED')
+        ->assertJsonPath('meta.request_id', 'test-validation-request')
+        ->assertJsonStructure([
+            'message',
+            'code',
+            'errors' => ['name'],
+            'meta' => ['request_id'],
+        ]);
+});
+
+test('rate limits use the stable api error envelope', function () {
+    Route::middleware(['api', 'throttle:1,1'])
+        ->get('/api/v1/test-rate-limit', fn () => response()->json(['status' => 'ok']));
+
+    $this->getJson('/api/v1/test-rate-limit')->assertOk();
+
+    $this->withHeader('X-Request-ID', 'test-rate-limit-request')
+        ->getJson('/api/v1/test-rate-limit')
+        ->assertTooManyRequests()
+        ->assertHeader('X-Request-ID', 'test-rate-limit-request')
+        ->assertJsonPath('code', 'COMMON.RATE_LIMITED')
+        ->assertJsonPath('meta.request_id', 'test-rate-limit-request')
         ->assertJsonStructure(['message', 'code', 'errors', 'meta' => ['request_id']]);
 });

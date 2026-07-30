@@ -3,10 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Models\AdminUser;
+use App\Models\Role;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rules\Password;
-use Spatie\Permission\Models\Role;
 
 class CreateAdminUser extends Command
 {

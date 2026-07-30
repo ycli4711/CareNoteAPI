@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Models\Permission;
+use App\Models\Role;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Permission;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
 class PermissionSeeder extends Seeder
@@ -19,6 +19,7 @@ class PermissionSeeder extends Seeder
         $permissions = [
             'admin.access',
             'admin.dashboard.view',
+            'admin.media.upload',
             'admin.accounts.manage',
             'admin.roles.manage',
             'system.health.view',
@@ -30,7 +31,11 @@ class PermissionSeeder extends Seeder
 
         Role::findOrCreate('super-admin', 'admin');
         Role::findOrCreate('administrator', 'admin')
-            ->syncPermissions(['admin.access', 'admin.dashboard.view']);
+            ->syncPermissions([
+                'admin.access',
+                'admin.dashboard.view',
+                'admin.media.upload',
+            ]);
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }

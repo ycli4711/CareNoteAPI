@@ -6,7 +6,7 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
-const appName = import.meta.env.VITE_APP_NAME || 'CareNoteAPI';
+const appName = import.meta.env.VITE_APP_NAME || '家庭药箱管理后台';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

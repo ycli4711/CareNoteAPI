@@ -51,15 +51,15 @@ export default function Security({
 
     return (
         <>
-            <Head title="Security settings" />
+            <Head title="安全设置" />
 
-            <h1 className="sr-only">Security settings</h1>
+            <h1 className="sr-only">安全设置</h1>
 
             <div className="space-y-6">
                 <Heading
                     variant="small"
-                    title="Update password"
-                    description="Ensure your account is using a long, random password to stay secure"
+                    title="修改密码"
+                    description="建议使用较长且随机的密码，以保障账户安全"
                 />
 
                 <Form
@@ -88,7 +88,7 @@ export default function Security({
                         <>
                             <div className="grid gap-2">
                                 <Label htmlFor="current_password">
-                                    Current password
+                                    当前密码
                                 </Label>
 
                                 <PasswordInput
@@ -97,14 +97,14 @@ export default function Security({
                                     name="current_password"
                                     className="mt-1 block w-full"
                                     autoComplete="current-password"
-                                    placeholder="Current password"
+                                    placeholder="请输入当前密码"
                                 />
 
                                 <InputError message={errors.current_password} />
                             </div>
 
                             <div className="grid gap-2">
-                                <Label htmlFor="password">New password</Label>
+                                <Label htmlFor="password">新密码</Label>
 
                                 <PasswordInput
                                     id="password"
@@ -112,7 +112,7 @@ export default function Security({
                                     name="password"
                                     className="mt-1 block w-full"
                                     autoComplete="new-password"
-                                    placeholder="New password"
+                                    placeholder="请输入新密码"
                                 />
 
                                 <InputError message={errors.password} />
@@ -120,7 +120,7 @@ export default function Security({
 
                             <div className="grid gap-2">
                                 <Label htmlFor="password_confirmation">
-                                    Confirm password
+                                    确认新密码
                                 </Label>
 
                                 <PasswordInput
@@ -128,7 +128,7 @@ export default function Security({
                                     name="password_confirmation"
                                     className="mt-1 block w-full"
                                     autoComplete="new-password"
-                                    placeholder="Confirm password"
+                                    placeholder="请再次输入新密码"
                                 />
 
                                 <InputError
@@ -141,7 +141,7 @@ export default function Security({
                                     disabled={processing}
                                     data-test="update-password-button"
                                 >
-                                    Save password
+                                    保存密码
                                 </Button>
                             </div>
                         </>
@@ -153,15 +153,14 @@ export default function Security({
                 <div className="space-y-6">
                     <Heading
                         variant="small"
-                        title="Two-factor authentication"
-                        description="Manage your two-factor authentication settings"
+                        title="双重验证"
+                        description="管理您账户的双重验证设置"
                     />
                     {twoFactorEnabled ? (
                         <div className="flex flex-col items-start justify-start space-y-4">
                             <p className="text-sm text-muted-foreground">
-                                You will be prompted for a secure, random pin
-                                during login, which you can retrieve from the
-                                TOTP-supported application on your phone.
+                                登录时系统会要求输入动态验证码，您可以从手机上的
+                                TOTP 身份验证器应用中获取。
                             </p>
 
                             <div className="relative inline">
@@ -172,7 +171,7 @@ export default function Security({
                                             type="submit"
                                             disabled={processing}
                                         >
-                                            Disable 2FA
+                                            关闭双重验证
                                         </Button>
                                     )}
                                 </Form>
@@ -187,10 +186,8 @@ export default function Security({
                     ) : (
                         <div className="flex flex-col items-start justify-start space-y-4">
                             <p className="text-sm text-muted-foreground">
-                                When you enable two-factor authentication, you
-                                will be prompted for a secure pin during login.
-                                This pin can be retrieved from a TOTP-supported
-                                application on your phone.
+                                启用双重验证后，登录时系统会要求输入动态验证码。
+                                您可以从手机上的 TOTP 身份验证器应用中获取。
                             </p>
 
                             <div>
@@ -199,7 +196,7 @@ export default function Security({
                                         onClick={() => setShowSetupModal(true)}
                                     >
                                         <ShieldCheck />
-                                        Continue setup
+                                        继续设置
                                     </Button>
                                 ) : (
                                     <Form
@@ -213,7 +210,7 @@ export default function Security({
                                                 type="submit"
                                                 disabled={processing}
                                             >
-                                                Enable 2FA
+                                                启用双重验证
                                             </Button>
                                         )}
                                     </Form>
@@ -242,7 +239,7 @@ export default function Security({
 Security.layout = {
     breadcrumbs: [
         {
-            title: 'Security settings',
+            title: '安全设置',
             href: edit(),
         },
     ],

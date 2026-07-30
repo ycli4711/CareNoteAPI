@@ -55,7 +55,7 @@ export const useTwoFactorAuth = (): UseTwoFactorAuthReturn => {
 
             setQrCodeSvg(svg);
         } catch {
-            setErrors((prev) => [...prev, 'Failed to fetch QR code']);
+            setErrors((prev) => [...prev, '获取二维码失败']);
             setQrCodeSvg(null);
         }
     }, [submit]);
@@ -68,7 +68,7 @@ export const useTwoFactorAuth = (): UseTwoFactorAuthReturn => {
 
             setManualSetupKey(key);
         } catch {
-            setErrors((prev) => [...prev, 'Failed to fetch a setup key']);
+            setErrors((prev) => [...prev, '获取设置密钥失败']);
             setManualSetupKey(null);
         }
     }, [submit]);
@@ -79,7 +79,7 @@ export const useTwoFactorAuth = (): UseTwoFactorAuthReturn => {
             const codes = (await submit(recoveryCodes())) as string[];
             setRecoveryCodesList(codes);
         } catch {
-            setErrors((prev) => [...prev, 'Failed to fetch recovery codes']);
+            setErrors((prev) => [...prev, '获取恢复代码失败']);
             setRecoveryCodesList([]);
         }
     }, [submit]);

@@ -10,60 +10,36 @@ servers:
   - url: /api/v1
     description: 当前部署环境
 tags:
-  - name: System
-    description: 服务状态
-  - name: Account
-    description: 当前应用用户
+  - name: Media
+    description: 图片等媒体资源
 paths:
-  /ping:
-    get:
-      operationId: ping
-      summary: 检查 API 服务状态
-      tags: [System]
-      security: []
-      responses:
-        '200':
-          description: API 正常
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestId'
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/Ping'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-  /me:
-    get:
-      operationId: currentUser
-      summary: 获取当前应用用户
-      tags: [Account]
+  /images:
+    post:
+      operationId: uploadAppImages
+      summary: 上传一张或多张图片
+      description: 小程序或 App 用户上传图片，每次最多 9 张，单张最大 10 MB。
+      tags: [Media]
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ImageUploadRequest'
       responses:
-        '200':
-          description: 当前应用用户
-          headers:
-            X-Request-ID:
-              $ref: '#/components/headers/RequestId'
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/SuccessEnvelope'
-                  - type: object
-                    properties:
-                      data:
-                        $ref: '#/components/schemas/AppUser'
+        '201':
+          $ref: '#/components/responses/ImagesUploaded'
         '401':
           $ref: '#/components/responses/Unauthenticated'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
 components:
   securitySchemes:
     bearerAuth:
@@ -76,24 +52,56 @@ components:
       schema:
         type: string
   responses:
-    BadRequest:
-      description: 请求格式错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
     Unauthenticated:
-      description: 未提供有效的应用用户 Token
+      description: 未提供当前接口要求的有效身份凭证
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
     Forbidden:
-      description: Token 缺少接口要求的能力
+      description: 当前身份缺少接口要求的能力或权限
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    ValidationFailed:
+      description: 上传数量、文件大小或图片格式不符合要求
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: 请求过于频繁
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: 图片存储失败或服务器暂时无法处理请求
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ImagesUploaded:
+      description: 图片上传成功
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    required: [images]
+                    properties:
+                      images:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UploadedImage'
   schemas:
     ResponseMeta:
       type: object
@@ -121,35 +129,33 @@ components:
           additionalProperties: true
         meta:
           $ref: '#/components/schemas/ResponseMeta'
-    Ping:
+    ImageUploadRequest:
       type: object
-      required: [service, api_version, status, timestamp]
+      required: [images]
       properties:
-        service:
-          type: string
-        api_version:
-          type: string
-          const: v1
-        status:
-          type: string
-          const: ok
-        timestamp:
-          type: string
-          format: date-time
-    AppUser:
+        images:
+          type: array
+          minItems: 1
+          maxItems: 9
+          items:
+            type: string
+            format: binary
+          description: JPEG、PNG 或 WebP 图片，单张最大 10 MB。
+    UploadedImage:
       type: object
-      required: [id, display_name, avatar_url, status, last_active_at]
+      required: [id, url, mime_type, size]
       properties:
         id:
           type: string
-        display_name:
-          type: [string, 'null']
-        avatar_url:
-          type: [string, 'null']
-          format: uri
-        status:
+          format: uuid
+          description: 图片唯一标识。
+        url:
           type: string
-          enum: [active, disabled]
-        last_active_at:
-          type: [string, 'null']
-          format: date-time
+          format: uri
+        mime_type:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        size:
+          type: integer
+          minimum: 1
+          description: 文件大小，单位为字节。

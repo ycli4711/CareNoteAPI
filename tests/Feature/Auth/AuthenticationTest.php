@@ -51,12 +51,15 @@ test('users with two factor enabled are redirected to two factor challenge', fun
 test('users can not authenticate with invalid password', function () {
     $user = AdminUser::factory()->create();
 
-    $this->post(route('login.store'), [
+    $response = $this->post(route('login.store'), [
         'email' => $user->email,
         'password' => 'wrong-password',
     ]);
 
     $this->assertGuest();
+    $response->assertSessionHasErrors([
+        'email' => '邮箱地址或密码不正确。',
+    ]);
 });
 
 test('users can logout', function () {
