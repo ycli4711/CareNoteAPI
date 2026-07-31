@@ -19,6 +19,7 @@ return new class extends Migration
                 'member_openids' => '家庭成员微信 OpenID 列表',
                 'invite_code' => '家庭邀请码',
                 'invite_code_expires' => '家庭邀请码过期时间',
+                'dissolved_at' => '家庭解散时间',
                 'created_at' => '创建时间',
                 'updated_at' => '更新时间',
             ],

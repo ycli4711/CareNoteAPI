@@ -2,7 +2,9 @@ openapi: 3.1.0
 info:
   title: CareNote API
   version: 1.0.0
-  description: CareNote 小程序与未来 App 共用的版本化 API 契约。
+  description: |
+    CareNote 小程序与未来 App 共用的版本化 API 契约。
+    所有 JSON 响应统一包含 success、code、message、data、errors 和 meta。
   license:
     name: MIT
     identifier: MIT
@@ -10,9 +12,279 @@ servers:
   - url: /api/v1
     description: 当前部署环境
 tags:
+  - name: Authentication
+    description: 微信小程序身份认证与 Token 管理
+  - name: Families
+    description: 家庭列表、创建、维护和退出
   - name: Media
     description: 图片等媒体资源
 paths:
+  /auth/wechat/login:
+    post:
+      operationId: loginWithWechat
+      summary: 使用微信临时凭证登录
+      description: 后台使用微信临时 code 换取身份，并签发有效期 1 天的 Access Token 和 30 天的 Refresh Token。
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WechatLoginRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/WechatLoginSucceeded'
+        '401':
+          $ref: '#/components/responses/WechatCodeInvalid'
+        '403':
+          $ref: '#/components/responses/AccountDisabled'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '502':
+          $ref: '#/components/responses/WechatUpstreamError'
+        '503':
+          $ref: '#/components/responses/WechatUnavailable'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/token/refresh:
+    post:
+      operationId: refreshTokenPair
+      summary: 刷新 Token
+      description: 使用 Refresh Token 原子轮换 Access Token 和 Refresh Token；旧 Token 会话立即失效。
+      tags: [Authentication]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/TokenRefreshSucceeded'
+        '401':
+          description: Refresh Token 无效、过期或会话已撤销
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '403':
+          $ref: '#/components/responses/AccountDisabled'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/logout:
+    post:
+      operationId: logoutCurrentToken
+      summary: 退出当前设备
+      description: 撤销当前请求所属设备会话的 Access Token 和 Refresh Token，不影响其他设备。
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/LogoutSucceeded'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountDisabled'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /users/me:
+    get:
+      operationId: getCurrentUser
+      summary: 获取当前用户
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/CurrentUserRetrieved'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountDisabled'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    post:
+      operationId: updateCurrentUser
+      summary: 更新个人资料与偏好
+      description: 只更新实际传入的字段，请求参数至少包含一个可更新字段。
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCurrentUserRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/CurrentUserRetrieved'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountDisabled'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /users/me/onboarding:
+    post:
+      operationId: updateCurrentUserOnboarding
+      summary: 更新新手引导状态
+      description: |
+        按字段合并新手引导状态。首次调用时由服务端记录 started_at；
+        completed=true 时由服务端完成引导并记录 completed_at。
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOnboardingStateRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/OnboardingStateUpdated'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountDisabled'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /users/me/avatar:
+    post:
+      operationId: updateCurrentUserAvatar
+      summary: 上传并更换头像
+      description: |
+        上传新头像并更新当前用户资料。替换成功后，系统异步清理属于当前用户的旧头像文件。
+      tags: [Authentication]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateAvatarRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/AvatarUpdated'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/AccountDisabled'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /families:
+    get:
+      operationId: listFamilies
+      summary: 获取当前用户加入的家庭
+      tags: [Families]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          $ref: '#/components/responses/FamilyListRetrieved'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+    post:
+      operationId: createFamily
+      summary: 创建家庭
+      description: 创建者自动加入家庭，并在同一事务内创建其“本人”成员档案。
+      tags: [Families]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyNameRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/FamilyCreated'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /families/{family_id}:
+    post:
+      operationId: updateFamily
+      summary: 修改家庭名称
+      description: 任意已加入该家庭的账号均可修改名称。
+      tags: [Families]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FamilyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyNameRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/FamilyRetrieved'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationFailed'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /families/{family_id}/leave:
+    post:
+      operationId: leaveFamily
+      summary: 退出家庭
+      description: |
+        退出时解除账号与“本人”成员档案的绑定，但保留医疗档案。
+        创建者退出时所有权转移给第一位剩余账号；最后一位账号退出时家庭进入解散状态。
+      tags: [Families]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/FamilyId'
+      responses:
+        '200':
+          $ref: '#/components/responses/FamilyLeft'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
   /images:
     post:
       operationId: uploadAppImages
@@ -51,6 +323,14 @@ components:
       description: 当前请求的链路追踪 ID。
       schema:
         type: string
+  parameters:
+    FamilyId:
+      name: family_id
+      in: path
+      required: true
+      description: 家庭 ID。
+      schema:
+        type: string
   responses:
     Unauthenticated:
       description: 未提供当前接口要求的有效身份凭证
@@ -64,8 +344,26 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: 家庭不存在或已经解散
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
     ValidationFailed:
-      description: 上传数量、文件大小或图片格式不符合要求
+      description: 请求字段不符合接口要求
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    PayloadTooLarge:
+      description: 上传文件或请求体超过允许大小
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    UnsupportedMediaType:
+      description: 请求格式或上传文件媒体类型不受支持
       content:
         application/json:
           schema:
@@ -77,11 +375,130 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
     InternalError:
-      description: 图片存储失败或服务器暂时无法处理请求
+      description: 服务器暂时无法处理请求
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    WechatCodeInvalid:
+      description: 微信临时凭证无效、过期或已使用
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    AccountDisabled:
+      description: 当前用户状态不允许登录或访问业务接口
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    WechatUpstreamError:
+      description: 微信服务返回无法识别的上游错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    WechatUnavailable:
+      description: 微信服务超时或暂时不可用
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    WechatLoginSucceeded:
+      description: 微信登录成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    const: COMMON.OK
+                  data:
+                    $ref: '#/components/schemas/WechatLoginResult'
+    TokenRefreshSucceeded:
+      description: Token 刷新成功
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TokenPair'
+    LogoutSucceeded:
+      description: 当前 Token 已撤销
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    required: [revoked]
+                    properties:
+                      revoked:
+                        type: boolean
+                        const: true
+    CurrentUserRetrieved:
+      description: 当前用户资料
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/CurrentUser'
+    OnboardingStateUpdated:
+      description: 新手引导状态已更新
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OnboardingState'
+    AvatarUpdated:
+      description: 头像已更新
+      headers:
+        X-Request-ID:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    type: object
+                    additionalProperties: false
+                    required: [avatar_url]
+                    properties:
+                      avatar_url:
+                        type: string
+                        format: uri
     ImagesUploaded:
       description: 图片上传成功
       headers:
@@ -102,6 +519,53 @@ components:
                         type: array
                         items:
                           $ref: '#/components/schemas/UploadedImage'
+    FamilyListRetrieved:
+      description: 当前用户加入的有效家庭列表
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FamilyList'
+    FamilyCreated:
+      description: 家庭及创建者的本人档案创建成功
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  code:
+                    type: string
+                    const: COMMON.CREATED
+                  data:
+                    $ref: '#/components/schemas/Family'
+    FamilyRetrieved:
+      description: 完整家庭对象
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Family'
+    FamilyLeft:
+      description: 已退出家庭
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/SuccessEnvelope'
+              - type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/FamilyLeaveResult'
   schemas:
     ResponseMeta:
       type: object
@@ -111,24 +575,347 @@ components:
           type: string
     SuccessEnvelope:
       type: object
-      required: [data, meta]
+      required: [success, code, message, data, errors, meta]
       properties:
+        success:
+          type: boolean
+          const: true
+        code:
+          type: string
+          enum: [COMMON.OK, COMMON.CREATED]
+        message:
+          type: string
         data: {}
+        errors:
+          type: object
+          maxProperties: 0
         meta:
           $ref: '#/components/schemas/ResponseMeta'
     ErrorEnvelope:
       type: object
-      required: [message, code, errors, meta]
+      required: [success, code, message, data, errors, meta]
       properties:
-        message:
-          type: string
+        success:
+          type: boolean
+          const: false
         code:
           type: string
+          enum:
+            - AUTH.UNAUTHENTICATED
+            - AUTH.FORBIDDEN
+            - AUTH.WECHAT_CODE_INVALID
+            - AUTH.REFRESH_TOKEN_INVALID
+            - AUTH.REFRESH_TOKEN_EXPIRED
+            - AUTH.SESSION_REVOKED
+            - AUTH.ACCOUNT_DISABLED
+            - AUTH.WECHAT_UPSTREAM_ERROR
+            - AUTH.WECHAT_UNAVAILABLE
+            - COMMON.BAD_REQUEST
+            - COMMON.VALIDATION_FAILED
+            - COMMON.NOT_FOUND
+            - COMMON.METHOD_NOT_ALLOWED
+            - COMMON.CONFLICT
+            - COMMON.PAYLOAD_TOO_LARGE
+            - COMMON.UNSUPPORTED_MEDIA_TYPE
+            - COMMON.RATE_LIMITED
+            - COMMON.HTTP_ERROR
+            - COMMON.INTERNAL_ERROR
+            - UPSTREAM.BAD_GATEWAY
+            - UPSTREAM.SERVICE_UNAVAILABLE
+            - UPSTREAM.GATEWAY_TIMEOUT
+        message:
+          type: string
+        data:
+          type: 'null'
         errors:
           type: object
           additionalProperties: true
         meta:
           $ref: '#/components/schemas/ResponseMeta'
+    WechatLoginRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: wx.login 返回的临时登录凭证
+    WechatLoginResult:
+      allOf:
+        - $ref: '#/components/schemas/LoginTokenPair'
+        - type: object
+          required: [user, is_new_user]
+          properties:
+            user:
+              $ref: '#/components/schemas/MiniProgramUser'
+            is_new_user:
+              type: boolean
+    LoginTokenPair:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - expires_in
+        - refresh_expires_in
+      properties:
+        access_token:
+          type: string
+          description: 仅在签发时返回一次，有效期 1 天
+        refresh_token:
+          type: string
+          description: 仅在签发时返回一次，有效期 30 天
+        expires_in:
+          type: integer
+          const: 86400
+          description: Access Token 剩余有效秒数
+        refresh_expires_in:
+          type: integer
+          const: 2592000
+          description: Refresh Token 剩余有效秒数
+    RefreshTokenRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+          maxLength: 512
+    TokenPair:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+        - refresh_expires_in
+      properties:
+        access_token:
+          type: string
+          description: 仅在签发时返回一次，有效期 1 天
+        refresh_token:
+          type: string
+          description: 仅在签发时返回一次，有效期 30 天
+        token_type:
+          type: string
+          const: Bearer
+        expires_in:
+          type: integer
+          const: 86400
+          description: Access Token 剩余有效秒数
+        refresh_expires_in:
+          type: integer
+          const: 2592000
+          description: Refresh Token 剩余有效秒数
+    MiniProgramUser:
+      type: object
+      required:
+        - id
+        - nickname
+        - avatar_url
+        - tracking_enabled
+        - privacy_v1_1_seen
+        - onboarding
+      properties:
+        id:
+          type: string
+          description: 用户 ULID
+        nickname:
+          type: [string, 'null']
+        avatar_url:
+          type: [string, 'null']
+          format: uri
+        tracking_enabled:
+          type: [boolean, 'null']
+        privacy_v1_1_seen:
+          type: [boolean, 'null']
+        onboarding:
+          $ref: '#/components/schemas/OnboardingState'
+    OnboardingState:
+      type: object
+      description: |
+        新手引导状态。该字段始终返回完整对象；用户尚未开始引导时，
+        返回 current_step=0、skipped=false，其余可空字段为 null。
+      additionalProperties: false
+      required:
+        - current_step
+        - started_at
+        - completed_at
+        - skipped
+        - selected_member_id
+        - selected_medicine_id
+      properties:
+        current_step:
+          type: integer
+          minimum: 0
+          default: 0
+          description: 当前引导步骤；0 表示尚未开始。
+        started_at:
+          type: [string, 'null']
+          format: date-time
+          description: 开始引导的时间，尚未开始时为 null。
+        completed_at:
+          type: [string, 'null']
+          format: date-time
+          description: 完成引导的时间，尚未完成时为 null。
+        skipped:
+          type: boolean
+          default: false
+          description: 用户是否主动跳过引导。
+        selected_member_id:
+          type: [string, 'null']
+          description: 引导过程中选中的家庭成员 ID。
+        selected_medicine_id:
+          type: [string, 'null']
+          description: 引导过程中选中的药品 ID。
+    UpdateCurrentUserRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nickname:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: 服务端会去除首尾空格。
+        gender:
+          type: string
+          enum: [male, female, unset]
+        tracking_enabled:
+          type: boolean
+        privacy_v1_1_seen:
+          type: boolean
+    UpdateOnboardingStateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        current_step:
+          type: integer
+          enum: [0, 1, 2, 3]
+        skipped:
+          type: boolean
+        selected_member_id:
+          type: [string, 'null']
+          description: 传 null 表示清除，不做数据库外键校验。
+        selected_medicine_id:
+          type: [string, 'null']
+          description: 传 null 表示清除，不做数据库外键校验。
+        completed:
+          type: boolean
+          description: 为 true 时，服务端将步骤设为 3、记录完成时间并将 skipped 设为 false。
+    UpdateAvatarRequest:
+      type: object
+      additionalProperties: false
+      required: [file]
+      properties:
+        file:
+          type: string
+          format: binary
+          description: JPEG、PNG 或 WebP 头像图片，最大 5 MB。
+    CurrentUser:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - nickname
+        - avatar_url
+        - gender
+        - tracking_enabled
+        - privacy_v1_1_seen
+        - onboarding
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: 用户 ULID
+        nickname:
+          type: [string, 'null']
+        avatar_url:
+          type: [string, 'null']
+          format: uri
+        gender:
+          type: string
+          enum: [male, female, unset]
+        tracking_enabled:
+          type: boolean
+        privacy_v1_1_seen:
+          type: boolean
+        onboarding:
+          $ref: '#/components/schemas/OnboardingState'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    FamilyNameRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: 服务端会去除首尾空格。
+    FamilyAccountMember:
+      type: object
+      additionalProperties: false
+      required: [id, nickname, avatar_url, is_current_user, is_creator]
+      properties:
+        id:
+          type: string
+          description: 用户 ULID。
+        nickname:
+          type: [string, 'null']
+        avatar_url:
+          type: [string, 'null']
+          format: uri
+        is_current_user:
+          type: boolean
+        is_creator:
+          type: boolean
+    Family:
+      type: object
+      additionalProperties: false
+      required: [id, name, member_count, account_members, created_at, updated_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        member_count:
+          type: integer
+          minimum: 1
+        account_members:
+          type: array
+          items:
+            $ref: '#/components/schemas/FamilyAccountMember'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    FamilyList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Family'
+    FamilyLeaveResult:
+      type: object
+      additionalProperties: false
+      required: [family_id, family_dissolved]
+      properties:
+        family_id:
+          type: string
+        family_dissolved:
+          type: boolean
     ImageUploadRequest:
       type: object
       required: [images]

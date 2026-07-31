@@ -14,7 +14,18 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Table('users')]
-#[Fillable(['display_name', 'avatar_url', 'status', 'last_active_at'])]
+#[Fillable([
+    'display_name',
+    'avatar_url',
+    'status',
+    'gender',
+    'tracking_enabled',
+    'privacy_v1_1_seen',
+    'invite_token',
+    'theme_id',
+    'onboarding',
+    'last_active_at',
+])]
 #[Hidden([])]
 class User extends Authenticatable
 {
@@ -45,6 +56,9 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'tracking_enabled' => 'boolean',
+            'privacy_v1_1_seen' => 'boolean',
+            'onboarding' => 'array',
             'last_active_at' => 'datetime',
         ];
     }

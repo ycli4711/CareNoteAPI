@@ -4,6 +4,14 @@
 
 将 CareNote 小程序当前依赖的微信云函数、云数据库和云存储能力，分阶段迁移至现有 Laravel 后台。
 
+本方案采用“分阶段实施、持续集成验证、全部完成后统一上线”：
+
+- 阶段划分用于控制开发范围、验证质量和降低排错复杂度，不代表分批切换生产流量。
+- 阶段 1～9 均为上线前实施阶段，完成单个阶段后不得单独切换对应生产业务。
+- 线上小程序在阶段 10 前继续完整使用微信云开发。
+- 阶段 1～9 全部完成、迁移演练和体验版全量回归通过后，才能进入阶段 10 统一生产切换。
+- 不采用长期双写；生产切换后，旧云数据库和云存储保留只读备份至少 30 天。
+
 目标架构：
 
 - Laravel API 承接业务接口和权限校验。
@@ -172,12 +180,21 @@ flowchart LR
 
 ## 5. 分阶段实施计划
 
+### 5.1 总体实施规则
+
+- 每个阶段完成独立验收，并回归此前已经完成的相关能力。
+- 阶段验收只表示该部分具备与后续模块集成的条件，不表示可以发布到生产。
+- 后端各阶段优先通过单元测试、API 功能测试和跨模块集成测试验证。
+- 阶段 8 至少完成一次全量数据和文件迁移演练，并记录实际耗时。
+- 阶段 9 使用体验版小程序完成全业务回归，验证真实客户端到 Laravel、PostgreSQL 和 R2 的完整链路。
+- 只有统一上线准入条件全部满足，才能执行阶段 10。
+
 ### 阶段状态
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | 0 | 迁移方案与范围确认 | 已完成 |
-| 1 | 微信登录与 API 身份体系 | 进行中 |
+| 1 | 微信登录与 API 身份体系 | 已完成 |
 | 2 | 通用文件服务 | 待开始 |
 | 3 | 家庭与权限体系 | 待开始 |
 | 4 | 核心用药链路 | 待开始 |
@@ -186,7 +203,8 @@ flowchart LR
 | 7 | 定时任务和微信能力 | 待开始 |
 | 8 | 数据与资源迁移演练 | 待开始 |
 | 9 | 小程序切换 HTTP API | 待开始 |
-| 10 | 生产切换与云开发退役 | 待开始 |
+| 10 | 生产统一切换 | 待开始 |
+| 11 | 稳定观察与云资源退役 | 待开始 |
 
 状态只使用：
 
@@ -199,9 +217,9 @@ flowchart LR
 
 范围：
 
-- 新增 `POST /api/v1/auth/wechat`。
+- 新增 `POST /api/v1/auth/wechat/login` 和 `POST /api/v1/auth/token/refresh`。
 - 新增 `POST /api/v1/auth/logout`。
-- 复用并完善 `GET /api/v1/me`。
+- 实现 `GET /api/v1/users/me`。
 - 后台调用微信 `code2Session` 获取 openid。
 - 创建或更新 `users` 和 `user_identities`。
 - 签发 Sanctum Token。
@@ -220,7 +238,7 @@ flowchart LR
 - 新用户可以通过微信 code 创建账户并取得 Token。
 - 老用户可以通过 openid 找回原账户。
 - 相同 code 或重复登录不会创建重复用户。
-- Token 可以访问 `/api/v1/me`。
+- Token 可以访问 `/api/v1/users/me`。
 - 注销 Token 后不能继续访问认证接口。
 - 相关接口文档、测试、格式检查全部通过。
 
@@ -240,7 +258,6 @@ flowchart LR
 - 前端 Token 持久化改造。
 - 家庭、成员和邀请业务。
 - 账号注销和业务数据级联删除。
-- refresh token。
 
 #### 1.2 登录数据流
 
@@ -252,7 +269,7 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     MP->>MP: uni.login() 获取临时 code
-    MP->>API: POST /api/v1/auth/wechat
+    MP->>API: POST /api/v1/auth/wechat/login
     API->>WX: code2Session(appid, secret, code)
     WX-->>API: openid / unionid / session_key
     API->>DB: 按 provider + openid 查找身份
@@ -261,8 +278,8 @@ sequenceDiagram
     else 已有身份
         API->>DB: 更新资料和 last_active_at
     end
-    API->>DB: 创建 30 天 Sanctum Token
-    API-->>MP: access_token + expires_at + user + is_new
+    API->>DB: 创建 1 天 Access Token 和 30 天 Refresh Token
+    API-->>MP: access_token + refresh_token + 有效秒数 + user + is_new_user
 ```
 
 约束：
@@ -280,7 +297,7 @@ sequenceDiagram
 接口：
 
 ```http
-POST /api/v1/auth/wechat
+POST /api/v1/auth/wechat/login
 Content-Type: application/json
 ```
 
@@ -288,11 +305,7 @@ Content-Type: application/json
 
 ```json
 {
-  "code": "wx.login 返回的临时登录凭证",
-  "profile": {
-    "display_name": "微信昵称",
-    "avatar_url": "https://example.com/avatar.jpg"
-  }
+  "code": "wx.login 返回的临时登录凭证"
 }
 ```
 
@@ -301,31 +314,34 @@ Content-Type: application/json
 | 字段 | 必填 | 规则 |
 |---|---|---|
 | `code` | 是 | 字符串，不能为空，最大 128 字符 |
-| `profile` | 否 | 对象 |
-| `profile.display_name` | 否 | 字符串，去除首尾空格，最大 50 字符 |
-| `profile.avatar_url` | 否 | 合法 HTTP/HTTPS URL，最大 2048 字符 |
 
 成功响应：
 
 ```json
 {
+  "success": true,
+  "code": "COMMON.OK",
+  "message": "登录成功。",
   "data": {
-    "token_type": "Bearer",
     "access_token": "1|plain-text-token",
-    "expires_at": "2026-08-30T12:00:00.000000Z",
-    "is_new": true,
+    "refresh_token": "2|plain-text-token",
+    "expires_in": 86400,
+    "refresh_expires_in": 2592000,
+    "is_new_user": true,
     "user": {
       "id": "01K...",
-      "display_name": "微信昵称",
-      "avatar_url": "https://example.com/avatar.jpg",
-      "status": "active",
-      "gender": null,
+      "nickname": "CareNote 用户",
+      "avatar_url": null,
       "tracking_enabled": true,
       "privacy_v1_1_seen": true,
-      "invite_token": null,
-      "theme_id": null,
-      "onboarding": null,
-      "last_active_at": "2026-07-31T12:00:00.000000Z"
+      "onboarding": {
+        "current_step": 0,
+        "started_at": null,
+        "completed_at": null,
+        "skipped": false,
+        "selected_member_id": null,
+        "selected_medicine_id": null
+      }
     }
   },
   "meta": {
@@ -334,19 +350,21 @@ Content-Type: application/json
 }
 ```
 
+登录成功统一返回 `HTTP 200 + COMMON.OK`，客户端通过 `is_new_user` 区分新老用户，不根据成功业务码分支。
+
 响应原则：
 
-- API 使用后台规范字段名，不返回云数据库 `_id`、`_openid`、`nickname`、`avatar`。
+- API 不返回云数据库 `_id`、`_openid`、`avatar` 等历史字段，登录响应按小程序契约返回 `nickname`。
 - 后续小程序切换时，由前端 Service 适配新字段，不在后台长期保留两套字段。
 - 新用户没有昵称时，后台生成稳定的默认展示名。
-- 老用户只有在本次请求明确提交非空资料时才更新昵称和头像。
+- 登录请求不接收用户资料；老用户昵称和头像保持原值。
 
 #### 1.4 当前用户接口
 
 接口：
 
 ```http
-GET /api/v1/me
+GET /api/v1/users/me
 Authorization: Bearer <access_token>
 ```
 
@@ -381,21 +399,37 @@ Authorization: Bearer <access_token>
 
 退出策略：
 
-- 只删除当前请求使用的 Token。
+- 撤销当前设备 Token 家族中的 Access Token 和 Refresh Token。
 - 不删除该用户其他设备的 Token。
 - 不删除用户数据。
-- 重复使用已撤销 Token 时返回 `AUTH.UNAUTHENTICATED`。
+- 重复使用已撤销 Access Token 时返回 `AUTH.UNAUTHENTICATED`；重用已轮换 Refresh Token 时返回 `AUTH.SESSION_REVOKED`。
 
 #### 1.6 Token 策略
 
 - 使用 Sanctum Bearer Token。
-- Token ability 固定为 `app:access`。
-- 每个 Token 有效期 30 天。
+- Access Token ability 固定为 `app:access`，有效期 1 天。
+- Refresh Token ability 固定为 `auth:refresh`，有效期 30 天，不能访问业务接口。
 - 不使用永久 Token。
-- 不实现 refresh token。
-- Token 过期后，小程序重新执行 `uni.login()` 获取新 Token。
+- 刷新时同时轮换两个 Token，旧 Access Token 和旧 Refresh Token 原子失效。
+- 已轮换 Refresh Token 被重用时撤销整个 Token 家族并返回 `AUTH.SESSION_REVOKED`。
+- Refresh Token 无效或过期后，小程序清理登录态并重新执行 `uni.login()`。
 - 每日清理已过期超过 24 小时的 Token。
 - Token 明文只在创建时返回一次，后台数据库只保存哈希。
+
+刷新接口：
+
+```http
+POST /api/v1/auth/token/refresh
+Content-Type: application/json
+```
+
+```json
+{
+  "refresh_token": "当前 Refresh Token"
+}
+```
+
+刷新成功返回新的 `access_token`、`refresh_token`、`expires_in` 和 `refresh_expires_in`。客户端必须一次性覆盖本地保存的两个 Token。
 
 阶段 9 切换小程序时：
 
@@ -424,7 +458,8 @@ Authorization: Bearer <access_token>
 ```dotenv
 WECHAT_MINI_PROGRAM_APP_ID=
 WECHAT_MINI_PROGRAM_APP_SECRET=
-WECHAT_MINI_PROGRAM_TOKEN_TTL_DAYS=30
+WECHAT_MINI_PROGRAM_ACCESS_TOKEN_TTL_SECONDS=86400
+WECHAT_MINI_PROGRAM_REFRESH_TOKEN_TTL_SECONDS=2592000
 ```
 
 App Secret 不进入前端环境变量，不写入接口响应或应用日志。
@@ -435,6 +470,9 @@ App Secret 不进入前端环境变量，不写入接口响应或应用日志。
 |---|---|---|
 | 401 | `AUTH.WECHAT_CODE_INVALID` | code 无效、过期或已使用 |
 | 401 | `AUTH.UNAUTHENTICATED` | Token 缺失、过期或已撤销 |
+| 401 | `AUTH.REFRESH_TOKEN_INVALID` | Refresh Token 无效或类型不正确 |
+| 401 | `AUTH.REFRESH_TOKEN_EXPIRED` | Refresh Token 已过期 |
+| 401 | `AUTH.SESSION_REVOKED` | Token 会话已撤销或已轮换 Refresh Token 被重用 |
 | 403 | `AUTH.ACCOUNT_DISABLED` | 用户状态不允许登录或访问 |
 | 422 | `COMMON.VALIDATION_FAILED` | 请求字段不合法 |
 | 429 | `COMMON.RATE_LIMITED` | 登录请求超过频率限制 |
@@ -448,6 +486,7 @@ App Secret 不进入前端环境变量，不写入接口响应或应用日志。
 
 - 微信登录使用独立的 `wechat-login` Rate Limiter。
 - 第一版按来源 IP 每分钟最多 10 次。
+- Token 刷新使用独立的 `token-refresh` Rate Limiter，按来源 IP 每分钟最多 30 次。
 - 全局 `throttle:api` 继续保留。
 - 发生 429 时继续使用现有统一 API 错误包络。
 
@@ -481,7 +520,7 @@ App Secret 不进入前端环境变量，不写入接口响应或应用日志。
 9. `app/Support/Api/ApiExceptionRenderer.php`
 10. `docs/api/openapi.yaml`
 
-原则上不新增数据库迁移，现有 `users`、`user_identities` 和 `personal_access_tokens` 已满足阶段 1。
+新增数据库迁移扩展 `personal_access_tokens`，记录 Token 类型、Token 家族、撤销时间和轮换后的替代 Token；`users` 与 `user_identities` 无需调整。
 
 #### 1.11 测试清单
 
@@ -499,13 +538,12 @@ App Secret 不进入前端环境变量，不写入接口响应或应用日志。
 - 老用户登录复用原用户。
 - 同一 openid 不会创建重复身份。
 - 新用户默认字段正确。
-- 提交资料时正确更新昵称和头像。
-- 不提交资料时不覆盖老用户资料。
+- 登录不接收用户资料，也不覆盖老用户昵称和头像。
 - 非 active 用户不能登录。
-- 登录成功返回 30 天 Token 和 `app:access` ability。
-- Token 可以访问 `/api/v1/me`。
+- 登录成功返回 1 天 Access Token、30 天 Refresh Token 和对应 ability。
+- Token 可以访问 `/api/v1/users/me`。
 - 缺少 ability 的 Token 被拒绝。
-- 退出只撤销当前 Token。
+- 退出撤销当前设备的整个 Token 家族，不影响其他设备。
 - 无效 code、参数错误、限流和微信不可用返回稳定错误包络。
 
 执行验证：
@@ -515,6 +553,38 @@ vendor\bin\pint app/Http/Controllers/Api/V1/Auth app/Http/Requests/Api/V1/Auth a
 php artisan test tests/Feature/Api/V1/WechatAuthenticationTest.php tests/Unit/Services/Auth/WechatMiniProgramClientTest.php tests/Feature/Api/V1/ApiFrameworkTest.php
 composer docs:api:check
 ```
+
+#### 1.12 实施记录
+
+实施日期：2026-07-31
+
+已完成：
+
+- 新增微信登录、Token 刷新、当前设备会话退出和完整当前用户响应。
+- 新增微信 `jscode2session` 客户端，落实连接超时、总超时、条件重试和错误映射。
+- 新增微信身份查找、首次用户事务创建、并发唯一键冲突恢复和资料更新规则。
+- Access Token ability 固定为 `app:access`，有效期为 1 天；Refresh Token 仅允许刷新且有效期为 30 天。
+- Refresh Token 通过数据库行锁原子轮换，支持撤销 Token 家族和检测旧 Refresh Token 重用。
+- 新用户 `tracking_enabled` 默认 `false`；没有真实隐私确认行为时，`privacy_v1_1_seen` 保持 `null`。
+- 非 `active` 用户不能登录或访问受保护的客户端 API。
+- 微信登录独立限流为同一来源 IP 每分钟 10 次。
+- 每日清理过期超过 24 小时的 Sanctum Token。
+- OpenAPI 已补充微信登录、退出和当前用户接口。
+
+验证结果：
+
+- 阶段 1 相关测试：23 个通过，124 个断言通过。
+- 项目完整 PHP 测试：93 个通过，833 个断言通过。
+- Pint 格式检查通过。
+- OpenAPI 文档校验通过。
+- Scheduler 已注册每日 `sanctum:prune-expired --hours=24`。
+
+阶段边界保持不变：
+
+- 未切换生产小程序。
+- 未创建个人家庭和“本人”档案。
+- 未迁移生产用户、云数据库或云存储数据。
+- 老用户真实数据映射将在阶段 8 迁移演练中完成最终验收。
 
 ### 阶段 2：通用文件服务
 
@@ -708,20 +778,67 @@ composer docs:api:check
 - 业务文件不再使用 `cloud://` fileID。
 - 登录、家庭、药品、计划、服药、库存、就诊和 AI 主链路通过体验版验证。
 
-### 阶段 10：生产切换与云开发退役
+### 阶段 10：生产统一切换
 
-推荐切换流程：
+#### 10.1 统一上线准入条件
 
-1. 发布支持新 API 和最低版本控制的小程序。
-2. 等待主要用户升级。
-3. 进入短维护窗口，暂停旧云端写入。
-4. 执行最终增量数据和文件导入。
-5. 执行生产数据核对。
-6. 切换小程序至 Laravel API 和 R2。
-7. 保留云数据库和云存储只读备份至少 30 天。
-8. 稳定后删除云函数和云开发资源。
+进入生产切换前，以下条件必须全部满足：
+
+- 阶段 1～9 状态均为 `已完成`。
+- 51 个云函数、28 个云数据库集合、6 类定时任务、24 个前端 Service 和直接操作云数据库的代码均有明确迁移结果。
+- 所有业务 API、Scheduler、Queue Job、微信能力和外部 AI 能力通过相关自动化测试。
+- 小程序源码不再直接读写云数据库，业务文件不再依赖 `cloud://` fileID。
+- 登录、家庭、用药、库存、就诊、文件、AI、权益和提醒等核心链路全部通过体验版回归。
+- 至少完成一次全量数据和文件迁移演练；正式切换前建议再完成一次最终预演。
+- PostgreSQL 记录数量、核心业务关联、库存和权益数据通过核对。
+- R2 文件数量、文件哈希、数据库引用和抽样访问通过核对。
+- 最终增量迁移耗时已经测量，维护窗口能够覆盖暂停写入、迁移、核对和冒烟测试。
+- 生产配置、监控、日志、队列 Worker、Scheduler、告警和回滚负责人已经确认。
+
+任何一项不满足，均不得开放 Laravel 新系统的生产写入。
+
+#### 10.2 推荐切换流程
+
+1. 发布仍使用云开发、但已经具备最低版本控制、维护模式和新 API 切换能力的过渡版本。
+2. 等待主要用户升级；未达到最低版本的客户端在切换前必须被阻止继续写入旧系统。
+3. 提前通知维护窗口，并确认生产切换负责人和检查清单。
+4. 进入短维护窗口，暂停旧云端写入。
+5. 导出维护窗口前的最终增量数据和文件。
+6. 将增量数据导入 PostgreSQL，将增量文件上传 R2，并重写文件引用。
+7. 核对集合与表记录数量、关键业务关联、库存、权益、文件数量和文件哈希。
+8. 通过已经验证的切换机制，使过渡版本统一改用 Laravel API 和 R2。
+9. 执行登录、家庭、服药、库存、文件、就诊、AI 和后台任务的生产冒烟测试。
+10. 冒烟测试通过后开放使用，并持续监控 API 错误率、队列积压、定时任务和外部服务。
+11. 将云数据库和云存储切换为只读备份，进入稳定观察期。
 
 不建议长期双写。库存、权益、奖励和服药记录在双写情况下容易产生无法自动修复的数据差异。
+
+#### 10.3 回滚边界
+
+- 如果最终增量迁移、数据核对或生产冒烟测试失败，并且 Laravel 新系统尚未开放写入，应终止切换，恢复旧云端写入。
+- Laravel 新系统开放写入后，不允许直接无条件回滚到旧系统，否则切换后产生的新数据无法自动同步。
+- 开放写入后的普通故障优先在 Laravel 系统修复；只有发生无法在可接受时间内修复的重大故障时，才启动专项数据回迁方案。
+- 专项数据回迁必须先冻结 Laravel 写入，导出切换后新增数据，确认向旧系统转换和导入规则，再决定是否回退。
+- 因此，最终数据核对和生产冒烟测试必须在开放新系统写入前完成。
+
+### 阶段 11：稳定观察与云资源退役
+
+范围：
+
+- 持续观察 API 错误率、接口延迟、认证失败、队列积压和定时任务执行结果。
+- 核查微信订阅消息、AI 调用、文件访问、库存扣减和权益流水。
+- 跟踪用户反馈，并对迁移前后的核心数据进行抽样复核。
+- 保留云数据库、云存储和云函数配置的只读备份至少 30 天。
+- 稳定观察期结束后，再制定云开发资源删除清单。
+
+验收标准：
+
+- 稳定观察期内没有未解决的数据一致性问题。
+- 核心业务没有持续性高频错误。
+- Laravel 数据、R2 文件和关键业务流水可追溯。
+- 云开发资源删除范围、备份位置和恢复方式已经确认。
+
+云函数、云数据库、云存储及相关配置的实际删除属于不可逆或高风险操作，必须另行确认删除清单后执行，不随生产切换自动删除。
 
 ## 6. 主要风险
 
@@ -776,11 +893,59 @@ composer docs:api:check
 3. 列出预计修改文件。
 4. 获得确认后编码。
 5. 执行最小相关测试。
-6. 更新 OpenAPI 文档。
-7. 更新本文档的阶段状态和实施记录。
-8. 用户确认验收后进入下一阶段。
+6. 执行与此前阶段有关的跨模块回归。
+7. 更新 OpenAPI 文档。
+8. 更新本文档的阶段状态和实施记录。
+9. 用户确认验收后进入下一阶段。
 
 涉及接口、字段、数据库结构或跨模块行为变化时，必须在编码前确认。
+
+### 7.1 分层测试策略
+
+迁移测试分为四层，不能只在所有功能开发完成后集中测试：
+
+1. 单元测试：
+   - 验证微信客户端、权限规则、库存计算、配额计算、文件映射和异常转换。
+   - 隔离外部服务，覆盖正常、失败、超时和重试分支。
+2. 模块测试：
+   - 每个阶段完成后，通过 API 功能测试验证该业务域的完整行为。
+   - 覆盖身份、权限、参数校验、事务、幂等、异常和响应契约。
+3. 跨模块集成测试：
+   - 每完成一个新阶段，回归它与此前阶段形成的业务链路。
+   - 重点检查登录身份、家庭权限、业务数据引用、文件归属、库存和权益流水。
+4. 体验版全量回归：
+   - 阶段 9 完成后，使用真实体验版小程序验证客户端到 Laravel、PostgreSQL、R2、Queue、微信和 AI 服务的完整链路。
+   - 全量回归通过仅表示具备生产切换资格，不自动触发生产发布。
+
+### 7.2 核心端到端回归场景
+
+上线前至少验证以下场景：
+
+1. 新用户登录、创建个人家庭和“本人”档案。
+2. 老用户登录并正确关联迁移后的原账户、家庭和历史数据。
+3. 创建家庭、邀请预览、加入、成员绑定、退出和越权访问。
+4. 创建药品、批次和用药计划，并正确生成服药记录。
+5. 确认、跳过、延迟、漏服和重复确认服药。
+6. 库存原子扣减、批次消耗、库存不足和并发更新。
+7. 创建就诊记录、上传报告、设置复查提醒和删除关联文件。
+8. OCR、用药单解析、语音识别、TTS 和 AI 助手调用。
+9. AI 配额扣减、失败退款、奖励发放和重复请求幂等。
+10. 每日记录、漏服处理、订阅提醒、库存提醒和周报任务。
+11. Token 过期、静默重新登录、断网、接口超时和外部服务失败。
+12. 历史 `cloud://` 文件迁移后访问，以及无权限访问和删除。
+
+### 7.3 阶段验收记录
+
+每个阶段都应记录：
+
+- 已完成范围和明确排除范围。
+- 自动化测试名称、执行结果和未覆盖项。
+- 跨模块回归结果。
+- API 文档和数据契约变化。
+- 已知风险、遗留问题和下一阶段依赖。
+- 阶段验收人和验收日期。
+
+阶段存在影响核心链路的未解决问题时，状态必须标记为 `阻塞`，不得通过降低验收标准进入下一阶段。
 
 ## 8. 决策记录
 
@@ -788,17 +953,17 @@ composer docs:api:check
 |---|---|---|
 | 2026-07-31 | 采用 Laravel API + PostgreSQL + R2 + Queue/Scheduler 作为目标架构 | 已确认 |
 | 2026-07-31 | 按业务域迁移，不逐个照搬云函数 | 已确认 |
+| 2026-07-31 | 采用分阶段实施和验证，阶段 1～9 不分批上线，全部完成后统一生产切换 | 已确认 |
 | 2026-07-31 | 小程序包内 TabBar 和必要图标不迁移到远程存储 | 已确认 |
 | 2026-07-31 | 不采用长期双写，使用演练、维护窗口和最终增量迁移 | 已确认 |
+| 2026-07-31 | 生产切换后进入至少 30 天稳定观察期，云开发资源另行确认后退役 | 已确认 |
 | 2026-07-31 | 新后台 AI 配额体系作为 AI 用量唯一事实源 | 已确认 |
-| 2026-07-31 | 阶段 1 Token 有效期为 30 天，不引入 refresh token，401 时由小程序重新微信登录 | 待确认 |
-| 2026-07-31 | 阶段 1 不创建个人家庭和本人档案，家庭初始化延后到阶段 3 | 待确认 |
+| 2026-07-31 | Access Token 有效期 1 天，Refresh Token 有效期 30 天；刷新时原子轮换整个 Token 对 | 已确认 |
+| 2026-07-31 | 阶段 1 不创建个人家庭和本人档案，家庭初始化延后到阶段 3 | 已确认 |
+| 2026-07-31 | 新用户行为追踪默认关闭，未发生真实隐私确认时不标记已确认 | 已确认 |
 
 ## 9. 下一步
 
-当前正在执行“阶段 1：微信登录与 API 身份体系”的方案确认。
+阶段 1“微信登录与 API 身份体系”已经实现并通过相关验证，等待用户验收。
 
-阶段 1 接口契约、数据流、错误码、文件变更和测试清单已经整理完成。确认以下两项后进入编码：
-
-1. Token 有效期采用 30 天，不实现 refresh token，401 后由小程序重新微信登录。
-2. 阶段 1 不在登录事务中创建个人家庭和“本人”档案，延后到阶段 3 统一实现。
+用户确认阶段 1 验收后，再进入阶段 2“通用文件服务”的方案确认；不得直接开始阶段 2 编码。

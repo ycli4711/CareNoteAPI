@@ -15,13 +15,18 @@ class ApiResponse
     public static function success(
         mixed $data,
         array $meta = [],
-        int $status = 200,
+        ApiSuccessCode $code = ApiSuccessCode::Ok,
+        ?string $message = null,
         ?Request $request = null,
     ): JsonResponse {
         return response()->json([
+            'success' => true,
+            'code' => $code->value,
+            'message' => $message ?? $code->message(),
             'data' => $data,
+            'errors' => (object) [],
             'meta' => self::meta($request, $meta),
-        ], $status);
+        ], $code->status());
     }
 
     /**
@@ -31,19 +36,21 @@ class ApiResponse
      * @param  array<string, mixed>  $meta
      */
     public static function error(
-        string $message,
         ApiErrorCode $code,
-        int $status,
         array $errors = [],
         array $meta = [],
+        ?string $message = null,
+        ?int $status = null,
         ?Request $request = null,
     ): JsonResponse {
         return response()->json([
-            'message' => $message,
+            'success' => false,
             'code' => $code->value,
+            'message' => $message ?? $code->message(),
+            'data' => null,
             'errors' => (object) $errors,
             'meta' => self::meta($request, $meta),
-        ], $status);
+        ], $status ?? $code->status());
     }
 
     /**

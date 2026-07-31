@@ -24,13 +24,20 @@ test('app user can upload multiple images', function () {
 
     $response
         ->assertCreated()
+        ->assertJsonPath('success', true)
+        ->assertJsonPath('code', 'COMMON.CREATED')
+        ->assertJsonPath('message', '创建成功。')
         ->assertJsonCount(2, 'data.images')
         ->assertJsonStructure([
+            'success',
+            'code',
+            'message',
             'data' => [
                 'images' => [
                     '*' => ['id', 'url', 'mime_type', 'size'],
                 ],
             ],
+            'errors',
             'meta' => ['request_id'],
         ]);
 

@@ -31,6 +31,11 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class);
+        Sanctum::authenticateAccessTokensUsing(
+            fn (PersonalAccessToken $token, bool $isValid): bool => $isValid
+                && $token->token_kind === 'access'
+                && $token->revoked_at === null,
+        );
 
         $this->configureDefaults();
         $this->configureAuthorization();
@@ -81,5 +86,14 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute(60)->by((string) $identifier);
         });
+
+        RateLimiter::for(
+            'wechat-login',
+            fn (Request $request): Limit => Limit::perMinute(10)->by((string) $request->ip()),
+        );
+        RateLimiter::for(
+            'token-refresh',
+            fn (Request $request): Limit => Limit::perMinute(30)->by((string) $request->ip()),
+        );
     }
 }

@@ -16,10 +16,16 @@ class CurrentUserResource extends JsonResource
     {
         return [
             'id' => $this->resource->getKey(),
-            'display_name' => $this->display_name,
+            'nickname' => $this->display_name,
             'avatar_url' => $this->avatar_url,
-            'status' => $this->status,
-            'last_active_at' => $this->last_active_at?->toISOString(),
+            'gender' => in_array($this->gender, ['male', 'female'], true)
+                ? $this->gender
+                : 'unset',
+            'tracking_enabled' => (bool) $this->tracking_enabled,
+            'privacy_v1_1_seen' => (bool) $this->privacy_v1_1_seen,
+            'onboarding' => OnboardingStateResource::make($this->onboarding)->resolve($request),
+            'created_at' => $this->created_at->toISOString(),
+            'updated_at' => $this->updated_at->toISOString(),
         ];
     }
 }

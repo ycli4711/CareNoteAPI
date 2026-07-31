@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Exceptions\Auth\AccountDisabledException;
 use App\Models\User;
 use Closure;
 use Illuminate\Auth\AuthenticationException;
@@ -21,6 +22,10 @@ class EnsureAppUser
     {
         if (! $request->user() instanceof User) {
             throw new AuthenticationException;
+        }
+
+        if ($request->user()->status !== 'active') {
+            throw new AccountDisabledException;
         }
 
         return $next($request);

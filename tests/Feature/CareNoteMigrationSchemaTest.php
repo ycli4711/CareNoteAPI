@@ -1,5 +1,6 @@
 <?php
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 it('creates every CareNote cloud collection table', function (): void {
@@ -57,6 +58,47 @@ it('maps CareNote user fields without duplicating nickname and avatar columns', 
     ]))->toBeTrue()
         ->and(Schema::hasColumn('users', 'nickname'))->toBeFalse()
         ->and(Schema::hasColumn('users', 'avatar'))->toBeFalse();
+});
+
+it('stores refresh token rotation metadata', function (): void {
+    expect(Schema::hasColumns('personal_access_tokens', [
+        'token_kind',
+        'token_family_id',
+        'revoked_at',
+        'replaced_by_token_id',
+    ]))->toBeTrue();
+});
+
+it('stores family dissolution state without deleting medical data', function (): void {
+    expect(Schema::hasColumn('cn_families', 'dissolved_at'))->toBeTrue();
+});
+
+it('preserves legacy family ids in primary and reference columns', function (): void {
+    $legacyFamilyId = 'legacy-cloud-family-id';
+    $legacyMemberId = 'legacy-cloud-member-id';
+
+    DB::table('cn_families')->insert([
+        'id' => $legacyFamilyId,
+        'name' => '旧家庭',
+        'creator_openid' => 'legacy-openid',
+        'member_openids' => json_encode(['legacy-openid'], JSON_THROW_ON_ERROR),
+        'created_at' => now(),
+        'updated_at' => now(),
+    ]);
+
+    DB::table('cn_family_members')->insert([
+        'id' => $legacyMemberId,
+        'family_id' => $legacyFamilyId,
+        'name' => '旧成员',
+        'relation' => '本人',
+        'linked_user_openid' => 'legacy-openid',
+        'created_at' => now(),
+    ]);
+
+    expect(DB::table('cn_families')->where('id', $legacyFamilyId)->value('id'))
+        ->toBe($legacyFamilyId)
+        ->and(DB::table('cn_family_members')->where('id', $legacyMemberId)->value('family_id'))
+        ->toBe($legacyFamilyId);
 });
 
 it('keeps embedded CareNote document fields as json columns', function (): void {

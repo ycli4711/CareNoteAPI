@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'wechat_mini_program' => [
+        'app_id' => env('WECHAT_MINI_PROGRAM_APP_ID'),
+        'app_secret' => env('WECHAT_MINI_PROGRAM_APP_SECRET'),
+        'access_token_ttl_seconds' => (int) env('WECHAT_MINI_PROGRAM_ACCESS_TOKEN_TTL_SECONDS', 86400),
+        'refresh_token_ttl_seconds' => (int) env('WECHAT_MINI_PROGRAM_REFRESH_TOKEN_TTL_SECONDS', 2592000),
+    ],
+
 ];

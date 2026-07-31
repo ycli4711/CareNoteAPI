@@ -2,6 +2,13 @@
 
 namespace App\Support\Api;
 
+use App\Exceptions\Auth\AccountDisabledException;
+use App\Exceptions\Auth\RefreshTokenExpiredException;
+use App\Exceptions\Auth\RefreshTokenInvalidException;
+use App\Exceptions\Auth\SessionRevokedException;
+use App\Exceptions\Auth\WechatCodeInvalidException;
+use App\Exceptions\Auth\WechatUnavailableException;
+use App\Exceptions\Auth\WechatUpstreamException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -18,54 +25,67 @@ class ApiExceptionRenderer
     public function render(Throwable $exception, Request $request): JsonResponse
     {
         return match (true) {
+            $exception instanceof WechatCodeInvalidException => ApiResponse::error(
+                ApiErrorCode::WechatCodeInvalid,
+                request: $request,
+            ),
+            $exception instanceof RefreshTokenInvalidException => ApiResponse::error(
+                ApiErrorCode::RefreshTokenInvalid,
+                request: $request,
+            ),
+            $exception instanceof RefreshTokenExpiredException => ApiResponse::error(
+                ApiErrorCode::RefreshTokenExpired,
+                request: $request,
+            ),
+            $exception instanceof SessionRevokedException => ApiResponse::error(
+                ApiErrorCode::SessionRevoked,
+                request: $request,
+            ),
+            $exception instanceof AccountDisabledException => ApiResponse::error(
+                ApiErrorCode::AccountDisabled,
+                request: $request,
+            ),
+            $exception instanceof WechatUpstreamException => ApiResponse::error(
+                ApiErrorCode::WechatUpstreamError,
+                request: $request,
+            ),
+            $exception instanceof WechatUnavailableException => ApiResponse::error(
+                ApiErrorCode::WechatUnavailable,
+                request: $request,
+            ),
             $exception instanceof ValidationException => ApiResponse::error(
-                '请求参数校验失败。',
                 ApiErrorCode::ValidationFailed,
-                422,
                 $exception->errors(),
                 request: $request,
             ),
             $exception instanceof AuthenticationException => ApiResponse::error(
-                '请先登录。',
                 ApiErrorCode::Unauthenticated,
-                401,
                 request: $request,
             ),
             $exception instanceof AuthorizationException => ApiResponse::error(
-                '没有执行该操作的权限。',
                 ApiErrorCode::Forbidden,
-                403,
                 request: $request,
             ),
             $exception instanceof ModelNotFoundException,
             $exception instanceof NotFoundHttpException => ApiResponse::error(
-                '请求的资源不存在。',
                 ApiErrorCode::NotFound,
-                404,
                 request: $request,
             ),
             $exception instanceof TooManyRequestsHttpException => ApiResponse::error(
-                '请求过于频繁，请稍后重试。',
                 ApiErrorCode::RateLimited,
-                429,
                 request: $request,
             ),
             $exception instanceof HttpExceptionInterface && $exception->getStatusCode() === 403 => ApiResponse::error(
-                '没有执行该操作的权限。',
                 ApiErrorCode::Forbidden,
-                403,
                 request: $request,
             ),
             $exception instanceof HttpExceptionInterface => ApiResponse::error(
-                '请求无法处理。',
-                ApiErrorCode::HttpError,
-                $exception->getStatusCode(),
+                ApiErrorCode::fromHttpStatus($exception->getStatusCode()),
+                status: $exception->getStatusCode(),
                 request: $request,
             ),
             default => ApiResponse::error(
-                '服务器暂时无法处理请求。',
                 ApiErrorCode::InternalError,
-                500,
                 request: $request,
             ),
         };
